@@ -31,6 +31,9 @@ def health() -> dict[str, str]:
 def read_root():
     return {"message": "FastAPI is running and Celery is configured!"}
 
+#To add a new enpoint that triggers a background job, simply create a new function with @app.post("/endpoint_name") 
+# then in the function import the task function from app.tasksand call .delay() 
+# on it to enqueue the job. Feel free to return a message confirming the job was sent to the queue!
 @app.post("/trigger")
 def trigger_job(name: str):
     from app.tasks import test_background_job 

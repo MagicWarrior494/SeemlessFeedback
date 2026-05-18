@@ -1,6 +1,7 @@
 import time
 from app.main import celery_app
 
+#to create a new task create a function and above it add @celery_app.task
 @celery_app.task
 def test_background_job(name: str):
     print(f"⏳ Starting heavy work for {name}...")
