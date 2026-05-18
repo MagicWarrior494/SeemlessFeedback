@@ -17,6 +17,9 @@ python -m venv venv
 # 3. Activate the environment
 .\venv\Scripts\Activate.ps1
 
+"if policy error: run: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process"
+
+
 # 4. Install all required packages (including Celery and Redis)
 pip install -r requirements.txt
 
@@ -25,9 +28,7 @@ cd ..
 
 
 
-
-
-frontend: # 1. Move into the frontend directory
+# 1. Frontend, Move into the frontend directory
 
 cd frontend
 
@@ -37,8 +38,6 @@ npm install
 # 3. Move back up to the project root
 cd ..
 
+# 4 run:
+python run_dev.py
 
-
-if policy error: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
-
-run: python run_dev.py
