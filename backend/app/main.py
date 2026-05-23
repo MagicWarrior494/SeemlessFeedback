@@ -14,7 +14,7 @@ app.add_middleware(
 )
 
 celery_app = Celery(
-    "voicelens",
+    "seemlessfeedback",
     broker="redis://localhost:6379/0",
     backend="redis://localhost:6379/0",
     include=["app.tasks"]
@@ -39,3 +39,20 @@ def trigger_job(name: str):
     from app.tasks import test_background_job 
     test_background_job.delay(name)
     return {"message": "Job successfully sent to the Celery queue!"}
+
+@app.post("/process-audio")
+def process_audio(file_path: str) -> dict:
+    """
+    Triggers the transcription pipeline.
+    Returns the task_id immediately so the frontend can start polling.
+    """
+    from app.tasks import process_audio_pipeline
+    
+    # 1. Enqueue the task via Celery / Memurai
+    task = process_audio_pipeline.delay(file_path)
+    
+    # 2. Hand back the tracking ticket ID to Kevin's frontend immediately
+    return {
+        "message": "Audio file accepted and queued for transcription.",
+        "task_id": task.id
+    }
