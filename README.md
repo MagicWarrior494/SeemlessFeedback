@@ -89,3 +89,15 @@ Expected output is a simple hello + placeholder AI response.
 - Add new API groups under `backend/app/api/`.
 - Keep reusable business logic in `backend/app/services/`.
 - Add frontend features as folders in `frontend/src/` (for example `src/features/feedback/`).
+
+
+
+
+
+run_dev.py
+https://www.memurai.com/get-memurai LTS version
+
+https://nodejs.org/en/download
+prebuilt binaries below
+
+npm i vite
