@@ -1,20 +1,47 @@
-import React from 'react';
-import { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
+import Sidebar from "./components/Sidebar";
+import AboutPage from "./pages/AboutPage";
+import HistoryPage from "./pages/HistoryPage";
+import RecordPage from "./pages/RecordPage";
+import SettingsPage from "./pages/SettingsPage";
+import { clearHistory, loadHistory } from "./utils/historyStorage";
+
+const PAGES = {
+  record: RecordPage,
+  history: HistoryPage,
+  settings: SettingsPage,
+  about: AboutPage,
+};
 
 export default function App() {
-  const [apiMessage, setApiMessage] = useState("Loading...");
+  const [page, setPage] = useState("record");
+  const [history, setHistory] = useState(() => loadHistory());
 
-  useEffect(() => {
-    fetch("http://127.0.0.1:8000/")
-      .then((res) => res.json())
-      .then((data) => setApiMessage(data.message))
-      .catch(() => setApiMessage("Could not reach FastAPI backend"));
+  const refreshHistory = useCallback(() => {
+    setHistory(loadHistory());
   }, []);
 
+  const handleClearHistory = useCallback(() => {
+    if (window.confirm("Clear all recording history from this browser?")) {
+      clearHistory();
+      setHistory([]);
+    }
+  }, []);
+
+  const Page = PAGES[page];
+
   return (
-    <main className="container">
-      <h1>Hello from React</h1>
-      <p>Backend says: {apiMessage}</p>
-    </main>
+    <div className="app">
+      <Sidebar active={page} onNavigate={setPage} />
+      <main className="main">
+        {page === "record" ? (
+          <RecordPage onHistoryUpdate={refreshHistory} />
+        ) : page === "history" ? (
+          <HistoryPage entries={history} onClear={handleClearHistory} />
+        ) : (
+          <Page />
+        )}
+      </main>
+    </div>
   );
 }
