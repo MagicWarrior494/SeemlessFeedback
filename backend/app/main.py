@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from celery import Celery
 from app.api.routes import router
+from app.services.db import fetch_job_by_id
 
 app = FastAPI(title="SeemlessFeedback API", version="0.1.0")
 
@@ -56,3 +57,19 @@ def process_audio(file_path: str) -> dict:
         "message": "Audio file accepted and queued for transcription.",
         "task_id": task.id
     }
+
+@app.get("/tasks/status/{task_id}")
+def get_task_status(task_id: str) -> dict:
+    """
+    API Router endpoint: Validates the request and passes the database
+    result directly through to the frontend client.
+    """
+    # 1. Let the database service do the heavy logic lift
+    job_data = fetch_job_by_id(task_id)
+    
+    # 2. Handle missing tickets instantly at the routing gate
+    if not job_data:
+        raise HTTPException(status_code=404, detail="Task ID not found in database.")
+        
+    # 3. Pass through the beautifully cleaned dictionary payload
+    return job_data

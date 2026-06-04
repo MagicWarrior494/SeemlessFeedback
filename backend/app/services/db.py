@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import json
 
 DB_PATH = "seemlessfeedback.db"
 
@@ -30,3 +31,35 @@ def init_db():
 
 # Ensure the database tables are created when this module is loaded
 init_db()
+
+def fetch_job_by_id(task_id: str) -> dict | None:
+    """
+    Queries the database for a specific task ID. 
+    Returns a cleaned dictionary if found, or None if it doesn't exist.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        "SELECT status, transcript, summary FROM jobs WHERE task_id = ?", 
+        (task_id,)
+    )
+    job = cursor.fetchone()
+    conn.close()
+    
+    if not job:
+        return None
+        
+    # Format the data cleanly into a Python dictionary
+    result = {
+        "task_id": task_id,
+        "status": job["status"],
+        "transcript": None,
+        "summary": job["summary"]
+    }
+    
+    # Safely unpack the serialized text array if it exists
+    if job["transcript"]:
+        result["transcript"] = json.loads(job["transcript"])
+        
+    return result
