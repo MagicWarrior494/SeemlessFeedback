@@ -20,6 +20,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS jobs (
             task_id TEXT PRIMARY KEY,
             status TEXT NOT NULL,
+            file_path TEXT,
             transcript TEXT,
             summary TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -63,3 +64,36 @@ def fetch_job_by_id(task_id: str) -> dict | None:
         result["transcript"] = json.loads(job["transcript"])
         
     return result
+
+def fetch_all_jobs() -> list:
+    """
+    Queries the database for all history entries, 
+    sorted by newest first, so you can check recent transcripts.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute(
+        "SELECT task_id, status, transcript, summary, created_at FROM jobs ORDER BY created_at DESC"
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    
+    jobs_list = []
+    for row in rows:
+        job = {
+            "task_id": row["task_id"],
+            "status": row["status"],
+            "created_at": row["created_at"],
+            "transcript": None,
+            "summary": row["summary"]
+        }
+        # Safely parse the json string back to an array if it exists
+        if row["transcript"]:
+            try:
+                job["transcript"] = json.loads(row["transcript"])
+            except Exception:
+                job["transcript"] = row["transcript"]
+        jobs_list.append(job)
+        
+    return jobs_list

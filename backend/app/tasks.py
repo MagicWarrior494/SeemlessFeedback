@@ -28,7 +28,7 @@ def process_audio_pipeline(self, file_path: str):
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO jobs (task_id, status) VALUES (?, ?)", 
-        (task_id, "TRANSCRIBING")
+        (task_id, "TRANSCRIBING", file_path)
     )
     conn.commit()
 
