@@ -4,3 +4,7 @@ celery
 redis
 google-genai
 python-multipart
+
+#for some reason google genai and python mulitpart are bugging out use these commands while in the backend director
+#.\venv\Scripts\python.exe -m pip install python-multipart
+#.\venv\Scripts\python.exe -m pip install google-genai
