@@ -3,7 +3,7 @@ import sys
 
 if not sys.platform.startswith("win"):
     print("Error: This script is configured specifically for Windows.")
-    sys.exit(1)
+    sys.exit(1) 
 
 print("🚀 Launching VoiceLens Local Development Environment...")
 print("💡 Memurai (Redis) is already running invisibly as a Windows Service.")
