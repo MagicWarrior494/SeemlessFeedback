@@ -29,7 +29,9 @@ def transcribe_and_diarize_audio(file_path: str) -> list:
     client = genai.Client()
     
     print(f"[AI Service] Uploading {file_path} to Gemini...")
-    audio_file = client.files.upload(file=file_path)
+    audio_file = client.files.upload(
+        file=file_path,
+        config=types.UploadFileConfig(mime_type="audio/webm"))
     
     while audio_file.state.name == "PROCESSING":
         time.sleep(2)

@@ -115,6 +115,14 @@ export default function RecordPage({ onHistoryUpdate }) {
     useAudioRecorder({
       onRecordingComplete: handleComplete,
       onPermissionGranted,
+      // Add this config object to force standard audio formats
+      audioConstraints: {
+        audio: {
+          channelCount: 1,
+          sampleRate: 44100,
+        }
+      },
+      mimeType: "audio/wav", // Forces standard linear PCM encoding if supported, or cleanly formatted audio container
     });
 
   const showMicBlocker = needsPermission || error === "denied";

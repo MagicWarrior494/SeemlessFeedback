@@ -83,7 +83,7 @@ async def save_recorded_audio(
 
         # 3. Calculate the relative path token your Celery workers need to read it
         # This converts the path back into the relative string layout: '../recordings/file.wav'
-        relative_worker_path = os.path.join("..", "recordings", clean_filename).replace("\\", "/")
+        relative_worker_path = os.path.join("recordings", clean_filename).replace("\\", "/")
 
         # 4. Trigger your existing verification pipeline automatically!
         from app.tasks import process_audio_pipeline
@@ -122,6 +122,8 @@ def get_task_status(task_id: str) -> dict:
     API Router endpoint: Validates the request and passes the database
     result directly through to the frontend client.
     """
+    from app.services.db import fetch_job_by_id
+    
     # 1. Let the database service do the heavy logic lift
     job_data = fetch_job_by_id(task_id)
     

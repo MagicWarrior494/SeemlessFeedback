@@ -1,14 +1,14 @@
 import os
+import json
 from google import genai
 from google.genai import types
-# Import your database connection function from your existing file
-# (Assuming your database code is in a file named database.py)
-from database import get_db_connection
+# Fixed: Point to your actual database configuration module
+from app.services.db import get_db_connection
 
 def summarize_transcript(task_id: str) -> str:
     """
-    Fetches a transcript from the database by task_id, generates a summary 
-    using Gemini, saves the summary back to the database, and returns it.
+    Fetches a transcript from the database by task_id, generates a structured academic 
+    summary using Gemini, saves the text back to the database, and returns it.
     """
     # 1. Fetch the transcript from the database
     conn = get_db_connection()
@@ -21,25 +21,34 @@ def summarize_transcript(task_id: str) -> str:
         conn.close()
         raise ValueError(f"No job found with task_id: {task_id}")
     
-    # If a summary already exists, just return it to save API calls/costs
+    # If a summary already exists, return it to save API calls
     if row['summary']:
         conn.close()
         return row['summary']
         
-    transcript = row['transcript']
-    if not transcript:
+    transcript_raw = row['transcript']
+    if not transcript_raw:
         conn.close()
         raise ValueError(f"Job {task_id} does not have a transcript to summarize.")
 
+    # Format the serialized JSON dialogue rows cleanly into text lines for the prompt context
+    try:
+        transcript_data = json.loads(transcript_raw)
+        if isinstance(transcript_data, list):
+            transcript = "\n".join([f"{seg.get('speaker', 'Unknown')}: {seg.get('text', '')}" for seg in transcript_data])
+        else:
+            transcript = str(transcript_raw)
+    except Exception:
+        transcript = str(transcript_raw)
+
     # 2. Initialize the Gemini Client
-    # Note: Ensure you have set your GEMINI_API_KEY environment variable.
     client = genai.Client()
 
     try:
-        # 3. Generate the summary
+        # 3. Generate the summary using correct google-genai structural syntax parameters
         response = client.models.generate_content(
             model='gemini-2.5-flash',
-            prompt=f"""You are an academic feedback analysis assistant.
+            contents=f"""You are an academic feedback analysis assistant.
 
 Your task is to analyze a transcript of a student discussion about a college course and extract useful, constructive feedback for the instructor.
 
@@ -89,14 +98,14 @@ Do not output JSON unless explicitly requested.
 TRANSCRIPT:
 {transcript}""",
             config=types.GenerateContentConfig(
-                temperature=0.3, # Lower temperature for more focused, factual summaries
+                temperature=0.3, # Lower temperature for focused summaries
             )
         )
-        summary_text = response.text
+        summary_text = response.text.strip()
         
-        # 4. Save the summary back to the database and update status
+        # 4. Save the summary back to the database and update status to terminal state COMPLETED
         cursor.execute(
-            "UPDATE jobs SET summary = ?, status = 'completed' WHERE task_id = ?", 
+            "UPDATE jobs SET summary = ?, status = 'COMPLETED' WHERE task_id = ?", 
             (summary_text, task_id)
         )
         conn.commit()
@@ -104,8 +113,8 @@ TRANSCRIPT:
         return summary_text
 
     except Exception as e:
-        # If something goes wrong with the API, mark the job as failed
-        cursor.execute("UPDATE jobs SET status = 'failed' WHERE task_id = ?", (task_id,))
+        # Update state ticket tracking markers appropriately
+        cursor.execute("UPDATE jobs SET status = 'SUMMARY_FAILED' WHERE task_id = ?", (task_id,))
         conn.commit()
         raise RuntimeError(f"Failed to generate summary: {e}")
         
