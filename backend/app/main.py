@@ -9,6 +9,10 @@ import os
 import shutil
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 
+from pydantic import BaseModel
+from typing import List
+from app.services.db import fetch_all_jobs, get_db_connection   
+
 app = FastAPI(title="SeemlessFeedback API", version="0.1.0")
 
 app.add_middleware(
@@ -64,30 +68,27 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 @app.post("/recordings")
 async def save_recorded_audio(
     file: UploadFile = File(...), 
-    duration_sec: str = Form(None)
+    duration_sec: str = Form(None),
+    speaker_count: int = Form(None)  # Capture the frontend selection
 ) -> dict:
     """
     Receives incoming raw microphone data chunks from the frontend, 
-    saves them to the disk, and instantly schedules the AI processing pipeline.
+    saves them to disk, and schedules the AI processing pipeline with user configs.
     """
     try:
-        # 1. Create a unique, web-safe local filename using timestamp seeds
         clean_filename = f"live_recording_{int(time.time())}_{file.filename}"
         server_file_path = os.path.join(UPLOAD_DIR, clean_filename)
         
-        # 2. Open a streaming disk handle and write the raw binary file chunks locally
         with open(server_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
         print(f"💾 Fresh clip successfully saved to disk at: {server_file_path}")
 
-        # 3. Calculate the relative path token your Celery workers need to read it
-        # This converts the path back into the relative string layout: '../recordings/file.wav'
         relative_worker_path = os.path.join("recordings", clean_filename).replace("\\", "/")
 
-        # 4. Trigger your existing verification pipeline automatically!
+        # Forward the explicit speaker count to the background task worker queue
         from app.tasks import process_audio_pipeline
-        task = process_audio_pipeline.delay(relative_worker_path)
+        task = process_audio_pipeline.delay(relative_worker_path, speaker_count)
 
         return {
             "message": "Recording uploaded and AI pipeline initialized successfully.",
@@ -99,6 +100,48 @@ async def save_recorded_audio(
         print(f"❌ Failed to save incoming audio data stream: {str(e)}")
         raise HTTPException(status_code=500, detail="Server failed to write audio payload to storage.")
 
+
+class TranscriptSegment(BaseModel):
+    speaker: str
+    text: str
+
+from typing import List, Dict
+
+@app.post("/tasks/edit/{task_id}")
+def edit_task_transcript(task_id: str, updated_transcript: List[Dict]) -> dict:
+    """
+    Receives an edited array of transcript blocks from the frontend 
+    (containing spelling corrections or modified speaker names) and updates the DB.
+    """
+    from app.services.db import get_db_connection
+    import json
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT status FROM jobs WHERE task_id = ?", (task_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Task ID not found.")
+        
+    try:
+        # Accept the raw Python dictionary list directly and serialize it to the DB string column
+        serialized_transcript = json.dumps(updated_transcript)
+        
+        cursor.execute(
+            "UPDATE jobs SET transcript = ? WHERE task_id = ?",
+            (serialized_transcript, task_id)
+        )
+        conn.commit()
+        print(f"📝 Human transcript edits saved successfully for Task ID: {task_id}")
+        return {"status": "SUCCESS", "message": "Transcript updated successfully."}
+    except Exception as e:
+        print(f"❌ Failed saving transcript edits for {task_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to write edits to database.")
+    finally:
+        conn.close()
+        
 @app.post("/process-audio")
 def process_audio(file_path: str) -> dict:
     """
@@ -134,3 +177,26 @@ def get_task_status(task_id: str) -> dict:
     # 3. Pass through the beautifully cleaned dictionary payload
     return job_data
 
+@app.post("/tasks/summarize/{task_id}")
+def trigger_on_demand_summary(task_id: str) -> dict:
+    """
+    Called manually by the frontend when moving to the Summary tab.
+    Kicks off the summarizer task using whatever transcript text currently exists in the DB.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT transcript FROM jobs WHERE task_id = ?", (task_id,))
+    row = cursor.fetchone()
+    
+    if not row or not row["transcript"]:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Cannot summarize an empty or non-existent transcript.")
+    
+    cursor.execute("UPDATE jobs SET status = 'SUMMARIZING' WHERE task_id = ?", (task_id,))
+    conn.commit()
+    conn.close()
+    
+    celery_app.send_task("app.tasks.summarize_transcript_task", args=[task_id])
+    
+    return {"message": "Summarization pipeline initialized.", "task_id": task_id}

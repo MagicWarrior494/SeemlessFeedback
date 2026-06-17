@@ -21,6 +21,7 @@ def init_db():
             task_id TEXT PRIMARY KEY,
             status TEXT NOT NULL,
             file_path TEXT,
+            speaker_count INTEGER DEFAULT 0,
             transcript TEXT,
             summary TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

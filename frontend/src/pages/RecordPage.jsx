@@ -229,6 +229,8 @@ export default function RecordPage({ onHistoryUpdate }) {
       return;
     }
 
+    setTranscript({ task_id: taskId });
+
     try {
       const pollInterval = setInterval(async () => {
         try {
@@ -238,11 +240,17 @@ export default function RecordPage({ onHistoryUpdate }) {
 
           setPipelineStatus(nextStatus);
 
-          if (nextStatus === "COMPLETED") {
+          if (nextStatus === "TRANSCRIPT_READY") {
             clearInterval(pollInterval);
             taskPollRef.current = null;
+            
             const nextTranscript = jobData.transcript;
-            setTranscript(nextTranscript);
+            
+            setTranscript({
+              task_id: taskId,
+              data: nextTranscript
+            });
+            
             setTranscriptDraft(transcriptToText(nextTranscript));
             setPipelineSummary(getSummaryFromResponse(jobData));
             setPipelineStatus("Transcript ready");
@@ -279,32 +287,80 @@ export default function RecordPage({ onHistoryUpdate }) {
       return;
     }
 
-    setStatus("Sending reviewed transcript to summarizer...");
+    const taskId = transcript?.task_id || pendingRecording?.task_id;
+    
+    if (!taskId) {
+      setStatus("Error: Missing Task ID. Cannot save edits.");
+      setPipelineStatus("State Sync Error");
+      return;
+    }
+
+    setStatus("Saving your transcript edits and initializing summarizer...");
     setPipelineStatus("SUMMARIZING");
     setWorkflowStep("summarizing");
 
     try {
-      const summary = await requestSummary(transcriptDraft, speakerCount);
-      setSummaryDraft(summary);
-      setPipelineStatus("Summary ready");
-      setWorkflowStep("summary-review");
-      setStatus("Review and edit the summary before finalizing.");
-    } catch (summaryError) {
-      console.error("Could not summarize transcript:", summaryError);
+      // 1. SAVE EDITS FIRST: Map the text block rows cleanly back to JSON dict keys
+      const lines = transcriptDraft.split("\n").map(line => {
+        const firstColonIndex = line.indexOf(":");
+        if (firstColonIndex !== -1) {
+          return {
+            speaker: line.substring(0, firstColonIndex).trim(),
+            text: line.substring(firstColonIndex + 1).trim()
+          };
+        }
+        return { speaker: "Speaker", text: line.trim() };
+      });
 
-      if (pipelineSummary) {
-        setSummaryDraft(pipelineSummary);
-        setPipelineStatus("Summary ready");
-        setWorkflowStep("summary-review");
-        setStatus(
-          "The separate summarizer endpoint was unavailable, so the summary returned by the pipeline is shown for review."
-        );
-        return;
+      const editResponse = await fetch(`${API_BASE_URL}/tasks/edit/${taskId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(lines),
+      });
+
+      if (!editResponse.ok) {
+        throw new Error("Backend failed to save text modifications before summarization.");
       }
 
+      // 2. TRIGGER THE SUMMARY: Initiate isolated on-demand backend pipeline
+      const summaryResponse = await fetch(`${API_BASE_URL}/tasks/summarize/${taskId}`, {
+        method: "POST"
+      });
+
+      if (!summaryResponse.ok) {
+        throw new Error("Summarization generation request failed.");
+      }
+
+      // 3. POLL FOR SUMMARY COMPLETION
+      const summaryPoll = setInterval(async () => {
+        try {
+          const checkRes = await fetch(`${API_BASE_URL}/tasks/status/${taskId}`);
+          const jobData = await checkRes.json();
+          
+          if (jobData.status === "COMPLETED") {
+            clearInterval(summaryPoll);
+            setSummaryDraft(jobData.summary);
+            setPipelineStatus("Summary ready");
+            setWorkflowStep("summary-review");
+            setStatus("Review and edit the summary before finalizing.");
+          } else if (jobData.status === "SUMMARY_FAILED") {
+            clearInterval(summaryPoll);
+            setPipelineStatus("Summarizer Failed");
+            setWorkflowStep("transcript-review");
+            setStatus("Could not compile feedback summary.");
+          }
+        } catch (err) {
+          clearInterval(summaryPoll);
+          setPipelineStatus("Backend Offline");
+          setWorkflowStep("transcript-review");
+        }
+      }, 2000);
+
+    } catch (summaryError) {
+      console.error("Could not summarize transcript:", summaryError);
       setPipelineStatus("Summarizer Failed");
       setWorkflowStep("transcript-review");
-      setStatus("Could not summarize the transcript. Check the backend endpoint.");
+      setStatus(`Pipeline Error: ${summaryError.message}`);
     }
   };
 
@@ -519,7 +575,8 @@ export default function RecordPage({ onHistoryUpdate }) {
                 onChange={(event) => setTranscriptDraft(event.target.value)}
                 rows={18}
                 style={{
-                  width: "150%",
+                  width: "100%",
+                  boxSizing: "border-box",
                   minHeight: "350px",
                   marginTop: "1rem",
                   padding: "1.25rem",

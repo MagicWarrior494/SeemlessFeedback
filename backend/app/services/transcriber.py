@@ -18,17 +18,17 @@ if "GEMINI_API_KEY" not in os.environ:
             except Exception as e:
                 print(f"[Warning] Failed to read environment from {path}: {e}")
 
-def transcribe_and_diarize_audio(file_path: str) -> list:
+def transcribe_and_diarize_audio(file_path: str, speaker_count: int = None) -> list:
     """
     Uploads an audio file to Gemini, requests structured transcription 
-    and diarization ONLY, and returns a list of speaker segments.
+    and diarization using an optional explicit speaker count constraint.
     """
     if not os.path.exists(file_path):
         return {"error": f"Audio file not found at path: {file_path}"}
         
     client = genai.Client()
     
-    print(f"[AI Service] Uploading {file_path} to Gemini...")
+    print(f"⏳ [AI Service] Uploading {file_path} to Gemini...")
     audio_file = client.files.upload(
         file=file_path,
         config=types.UploadFileConfig(mime_type="audio/webm"))
@@ -40,14 +40,22 @@ def transcribe_and_diarize_audio(file_path: str) -> list:
     if audio_file.state.name == "FAILED":
         raise Exception("Gemini audio processing failed on upload.")
 
-    # Modified prompt to remove summarization entirely
+    # Explicit Prompt Engineering: Dictate the exact speaker count to solve poor diarization separation
+    speaker_instruction = "Use speaker diarization to separate the speakers (e.g., Speaker A, Speaker B)."
+    if speaker_count and speaker_count > 0:
+        speaker_instruction = (
+            f"There are exactly {speaker_count} unique human speakers in this conversation. "
+            f"You must strictly force your speaker diarization algorithm to identify and isolate exactly "
+            f"{speaker_count} distinct labels (e.g., Speaker A up to your target maximum constraint value)."
+        )
+
     prompt = (
-        "Analyze this audio file. Accurately transcribe the text and use speaker "
-        "diarization to separate the speakers (e.g., Speaker A, Speaker B). "
-        "Return the final output matching the requested JSON schema structure perfectly."
+        f"Analyze this audio file. Accurately transcribe the text and {speaker_instruction} "
+        "Do not group separate people into the same speaker entity. Return the final output matching "
+        "the requested JSON schema structure perfectly."
     )
 
-    print("[AI Service] Querying Gemini model...")
+    print("🤖 [AI Service] Querying Gemini model with strict diarization rules...")
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         contents=[audio_file, prompt],
@@ -74,7 +82,6 @@ def transcribe_and_diarize_audio(file_path: str) -> list:
 
     client.files.delete(name=audio_file.name)
     
-    # Return just the transcript list data
     result_data = json.loads(response.text)
     return result_data.get("transcript")
 
