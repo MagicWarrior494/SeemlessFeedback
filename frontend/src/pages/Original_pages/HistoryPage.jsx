@@ -52,11 +52,6 @@ export default function HistoryPage({ entries, onClear }) {
               durationSec={item.durationSec}
             />
             <p className="history-transcript">{item.transcript}</p>
-            {item.summary && (
-              <p className="history-transcript">
-                <strong>Summary:</strong> {item.summary}
-              </p>
-            )}
             {item.uploadStatus && (
               <p className="history-upload-status">{item.uploadStatus}</p>
             )}
