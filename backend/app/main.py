@@ -10,8 +10,11 @@ import shutil
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 
 from pydantic import BaseModel
-from typing import List
+from typing import List, Dict
 from app.services.db import fetch_all_jobs, get_db_connection   
+
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header
+from app.services.auth import create_user, authenticate_user
 
 app = FastAPI(title="SeemlessFeedback API", version="0.1.0")
 
@@ -200,3 +203,55 @@ def trigger_on_demand_summary(task_id: str) -> dict:
     celery_app.send_task("app.tasks.summarize_transcript_task", args=[task_id])
     
     return {"message": "Summarization pipeline initialized.", "task_id": task_id}
+
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    role: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/api/register")
+def register_account(payload: RegisterRequest):
+    """Saves a new user account down to your SQLite architecture."""
+    if payload.role not in ["student", "instructor"]:
+        raise HTTPException(status_code=400, detail="Invalid account tier role.")
+        
+    success = create_user(payload.email, payload.password, payload.role)
+    if not success:
+        raise HTTPException(status_code=400, detail="An account with that email already exists.")
+        
+    return {"status": "SUCCESS", "message": "User registered successfully!"}
+
+
+@app.post("/api/login")
+def login_account(payload: LoginRequest):
+    """Verifies credentials and returns workspace configuration metadata keys."""
+    user_profile = authenticate_user(payload.email, payload.password)
+    if not user_profile:
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+        
+    return {
+        "status": "SUCCESS",
+        "user": user_profile
+    }
+
+
+@app.get("/tasks/history")
+def get_all_tasks_history(x_user_role: str = Header(None)) -> list:  # <-- Tracks incoming header role
+    """
+    Returns history entries ONLY if the requesting account holds Instructor clearance.
+    """
+    # Force multi-tenant security verification right at the router threshold gate
+    if x_user_role != "instructor":
+        raise HTTPException(
+            status_code=403, 
+            detail="Access Denied: Students do not have clearance to evaluate master history logs."
+        )
+        
+    from app.services.db import fetch_all_jobs
+    return fetch_all_jobs()

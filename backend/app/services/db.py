@@ -15,7 +15,17 @@ def init_db():
     """Creates the database table if it doesn't exist yet."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+        
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            user_id TEXT PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL CHECK(role IN ('student', 'instructor')),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS jobs (
             task_id TEXT PRIMARY KEY,
@@ -24,10 +34,12 @@ def init_db():
             speaker_count INTEGER DEFAULT 0,
             transcript TEXT,
             summary TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            user_id TEXT,  -- <-- foreign key link tracking WHO uploaded this clip
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(user_id)
         )
     ''')
-    
+
     conn.commit()
     conn.close()
 
