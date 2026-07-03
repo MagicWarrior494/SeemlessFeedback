@@ -79,7 +79,7 @@ REMAINING RULES:
 - When possible, distinguish between course design issues and teaching method issues.
   - Course design may include assignments, rubrics, Canvas layout, workload, due dates, and materials.
   - Teaching methods may include lectures, demonstrations, critiques, communication, pacing, and availability.
-- Be aware of negativity bias. Students may naturally focus more on negative experiences than positive ones.
+- Be aware of negativity bias. Students may naturally focus more on negative experiences than positive ones. Do not assume the course was mostly negative just because complaints are more detailed or emotionally expressed then possitive ones.
 
 Analyze the transcript and produce the following sections:
 
