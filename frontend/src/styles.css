@@ -576,6 +576,67 @@ body {
   color: var(--text-muted);
 }
 
+.feedback-metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.feedback-metadata-field {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.feedback-metadata-field h3 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+}
+
+.feedback-choice-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.feedback-choice-tabs button {
+  flex: 1;
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.feedback-choice-tabs button.is-active {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--text);
+}
+
+.feedback-metadata-field select,
+.feedback-metadata-field input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+.feedback-new-item {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.feedback-new-item .btn-ghost {
+  flex-shrink: 0;
+}
+
 .about-panel p {
   margin: 0 0 0.75rem;
   line-height: 1.55;
@@ -644,6 +705,14 @@ body {
 }
 
 @media (max-width: 640px) {
+  .feedback-metadata-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .feedback-new-item {
+    flex-direction: column;
+  }
+
   .app {
     flex-direction: column;
   }

@@ -48,47 +48,78 @@ def summarize_transcript(task_id: str) -> str:
         # 3. Generate the summary using correct google-genai structural syntax parameters
         response = client.models.generate_content(
             model='gemini-2.5-flash',
-            contents=f"""You are an academic feedback analysis assistant.
-
-Your task is to analyze a transcript of a student discussion about a college course and extract useful, constructive feedback for the instructor.
+            contents=f"""Your task is to analyze a transcript of a student discussion about a college course and extract useful, constructive feedback for the instructor.
 
 IMPORTANT RULES:
-- Focus ONLY on course-related feedback.
-- Ignore unrelated conversation, unrelated jokes, tangents, greetings, or filler.
-- Do NOT insult or attack the teacher.
-- Do NOT exaggerate student opinions.
+- KEEP in mind that students may have an initial thought but may get sidetracked or interrupted. If a student is interrupted before completing a thought, you may briefly note the likely direction of the comment only if it is strongly supported by the surrounding conversation. Clearly label this as an inference rather than a confirmed statement. Keep this potential thought to a max of 1-2 sentences.
+- In your feedback, extract a few short, representative quotes from the transcript for each main point discussed.
+- If you research online for better context on a given topic, mention it in the summary and provide links to the sources used. Keep any outside research clearly separate from the transcript-based feedback.
+- Don't use up more than 3,000 tokens in your response. If the transcript is too long, summarize the main points and ignore the rest.
+- Focus ONLY on course-related feedback, unless the topic discussed is entirely off-topic and irrelevant to a course; if so, provide just a summary of each of the points discussed, and ignore all remaining rules and instructions. This exception is for testing purposes.
+
+REMAINING RULES:
+- Try to ignore unrelated conversations, jokes, tangents, greetings, or filler.
+- Do NOT insult or attack the teacher themselves and focus on the course discussion. If the students do, ignore it and focus on the course discussion.
+- If the students mention the teacher's personality, or other not-physicaly related attributes, don't ignore it, but focus on how it may affect the course and learning experience. For example, if the teacher is too strict, too lenient, too disorganized, too unprepared, or if a personal issue becomes distracting to the learning environment, focus only on the effect it has on the course; if it doesn't relate to the learning enviorment, ignore it.
+- Do NOT make up any information or opinions that are not present in the transcript.
+- Ignore any criticisms about the teacher's appearance.
+- Do NOT exaggerate or undermine student opinions.
 - Do NOT invent information not stated in the transcript.
-- Preserve nuance and uncertainty.
-- If students disagree, mention the disagreement.
+- Preserve nuance and uncertainty. Mention if students are unsure or have mixed opinions on things.
+- If students disagree, have mixed opinions, or agree, mention it.
 - Prioritize actionable feedback the teacher can realistically improve.
 - Treat repeated complaints or praise as more important signals.
+- Do not infer widespread problems from isolated comments. If there is not enough evidence that an issue reflects the group’s opinion, clearly label it as an isolated concern.
+- Rank issues by overall significance rather than only by the order they appear in the transcript.
+- Preserve meaningful detail. Prefer several specific observations over one vague generalized statement.
+- Separate confirmed transcript evidence from interpretation or inference.
+- When possible, distinguish between objective observations and student opinions.
+  - Example objective observation: “The due date changed twice.”
+  - Example student opinion: “The course felt disorganized.”
+- When possible, distinguish between course design issues and teaching method issues.
+  - Course design may include assignments, rubrics, Canvas layout, workload, due dates, and materials.
+  - Teaching methods may include lectures, demonstrations, critiques, communication, pacing, and availability.
+- Be aware of negativity bias. Students may naturally focus more on negative experiences than positive ones.
 
 Analyze the transcript and produce the following sections:
 
-1. OVERALL SENTIMENT
-Provide a short summary of the overall student attitude toward the course.
-
-2. KEY POSITIVE FEEDBACK
+1. KEY POSITIVE FEEDBACK
 List the main things students appreciated.
+For each main point, include:
+- Brief explanation
+- Representative quote or evidence from transcript
+- Frequency: Mentioned once / Mentioned by multiple students / Mentioned repeatedly
+- Confidence: Low / Medium / High
 
-3. KEY CRITICAL FEEDBACK
-List the major complaints or frustrations students discussed. Include:
+2. KEY CRITICAL FEEDBACK
+List the major complaints or frustrations students discussed. 
+For each main point, include:
 - Issue title
 - Brief explanation
-- Estimated severity (Low, Medium, High)
+- Category: Course Design / Teaching Method / Communication / Workload / Materials / Other.
+- Estimated severity: Low / Medium / High
+- Frequency: Mentioned once / Mentioned by multiple students / Mentioned repeatedly
+- Confidence: Low / Medium / High
 - Evidence from transcript
+- Note whether the issue is an objective observation, student opinion, or interpretation/inference
 
-4. REPEATED THEMES
+3. REPEATED THEMES
 Identify complaints or praise mentioned multiple times or agreed upon by multiple students.
 
-5. ACTIONABLE SUGGESTIONS FOR THE TEACHER
-Convert the feedback into constructive recommendations.
-
-6. STUDENT DISAGREEMENTS OR MIXED OPINIONS
+4. STUDENT DISAGREEMENTS OR MIXED OPINIONS
 Identify areas where students had different perspectives.
 
-7. IMPORTANT QUOTES
-Extract a few short, representative quotes from the transcript.
+5. OVERALL SENTIMENT
+Provide a short summary of the overall student attitude toward the course.
+
+6. ACTIONABLE SUGGESTIONS FOR THE TEACHER
+Use the previous feedback/output into possible constructive recommendations.
+Focus on realistic improvements the teacher could make.
+
+7. EFFECTIVE PRACTICES TO CONTINUE
+List things the teacher or course is already doing well and should continue doing.
+8. LIMITED OR UNCERTAIN FEEDBACK
+List any concerns that were mentioned but did not have enough evidence to treat as a major theme.
 
 OUTPUT FORMAT:
 Use clean markdown formatting with headings and bullet points.
