@@ -40,6 +40,16 @@ def init_db():
         )
     ''')
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS courses (
+            course_id TEXT PRIMARY KEY,
+            course_name TEXT NOT NULL,
+            instructor_id TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(instructor_id) REFERENCES users(user_id)
+        )
+    ''')
+
     conn.commit()
     conn.close()
 

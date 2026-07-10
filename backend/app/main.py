@@ -15,6 +15,7 @@ from app.services.db import fetch_all_jobs, get_db_connection
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header
 from app.services.auth import create_user, authenticate_user
+from app.services.courses import create_course, get_all_courses
 
 app = FastAPI(title="SeemlessFeedback API", version="0.1.0")
 
@@ -255,3 +256,31 @@ def get_all_tasks_history(x_user_role: str = Header(None)) -> list:  # <-- Track
         
     from app.services.db import fetch_all_jobs
     return fetch_all_jobs()
+
+class CourseCreateRequest(BaseModel):
+    course_name: str
+    instructor_id: str
+
+@app.post("/api/courses")
+def add_new_course(payload: CourseCreateRequest, x_user_role: str = Header(None)):
+    """Allows instructors to add a new course to the database."""
+    if x_user_role != "instructor":
+        raise HTTPException(
+            status_code=403, 
+            detail="Access Denied: Only instructors can create new courses."
+        )
+        
+    if not payload.course_name.strip():
+        raise HTTPException(status_code=400, detail="Course name cannot be empty.")
+        
+    success = create_course(payload.course_name.strip(), payload.instructor_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save course to the database.")
+        
+    return {"status": "SUCCESS", "message": "Course created successfully!"}
+
+
+@app.get("/api/courses")
+def fetch_global_courses():
+    """Returns a global list of all courses for the student dropdown."""
+    return get_all_courses()
