@@ -42,11 +42,30 @@ def init_db():
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS courses (
-            course_id TEXT PRIMARY KEY,
-            course_name TEXT NOT NULL,
-            instructor_id TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(instructor_id) REFERENCES users(user_id)
+            course_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS teachers (
+            teacher_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS finalized_feedback (
+            task_id TEXT PRIMARY KEY,
+            course_id INTEGER NOT NULL,
+            teacher_id INTEGER NOT NULL,
+            summary TEXT NOT NULL,
+            finalized_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(task_id) REFERENCES jobs(task_id),
+            FOREIGN KEY(course_id) REFERENCES courses(course_id),
+            FOREIGN KEY(teacher_id) REFERENCES teachers(teacher_id)
         )
     ''')
 

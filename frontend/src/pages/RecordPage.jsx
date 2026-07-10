@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { uploadRecording } from "../api/client";
 import RecordButton from "../components/RecordButton";
 import RecordingTimer from "../components/RecordingTimer";
@@ -84,6 +84,15 @@ export default function RecordPage({ onHistoryUpdate }) {
   const [transcriptDraft, setTranscriptDraft] = useState("");
   const [summaryDraft, setSummaryDraft] = useState("");
   const [pipelineSummary, setPipelineSummary] = useState("");
+  const [courses, setCourses] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [selectedCourse, setSelectedCourse] = useState("");
+  const [selectedTeacher, setSelectedTeacher] = useState("");
+  const [courseMode, setCourseMode] = useState("select");
+  const [teacherMode, setTeacherMode] = useState("select");
+  const [newCourseName, setNewCourseName] = useState("");
+  const [newTeacherName, setNewTeacherName] = useState("");
+  const [metadataLoading, setMetadataLoading] = useState(false);
   const fileInputRef = useRef(null);
   const taskPollRef = useRef(null);
 
@@ -93,6 +102,68 @@ export default function RecordPage({ onHistoryUpdate }) {
     refresh();
   }, [refresh]);
 
+  const loadFeedbackMetadata = useCallback(async () => {
+    setMetadataLoading(true);
+    try {
+      const [courseResponse, teacherResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/courses`),
+        fetch(`${API_BASE_URL}/api/teachers`),
+      ]);
+      if (!courseResponse.ok || !teacherResponse.ok) {
+        throw new Error("Could not load saved courses and teachers.");
+      }
+      setCourses(await courseResponse.json());
+      setTeachers(await teacherResponse.json());
+    } catch (metadataError) {
+      setStatus(metadataError.message);
+    } finally {
+      setMetadataLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (workflowStep === "summary-review") {
+      loadFeedbackMetadata();
+    }
+  }, [workflowStep, loadFeedbackMetadata]);
+
+  const createMetadataItem = async (kind) => {
+    const isCourse = kind === "course";
+    const name = (isCourse ? newCourseName : newTeacherName).trim();
+    if (!name) {
+      setStatus(`Enter a ${kind} name first.`);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/${isCourse ? "courses" : "teachers"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const item = await response.json();
+      if (!response.ok) {
+        throw new Error(item.detail || `Could not save ${kind}.`);
+      }
+      if (isCourse) {
+        setCourses((current) => [...current.filter((course) => course.id !== item.id), item]
+          .sort((a, b) => a.name.localeCompare(b.name)));
+        setSelectedCourse(String(item.id));
+        setNewCourseName("");
+        setCourseMode("select");
+      } else {
+        setTeachers((current) => [...current.filter((teacher) => teacher.id !== item.id), item]
+          .sort((a, b) => a.name.localeCompare(b.name)));
+        setSelectedTeacher(String(item.id));
+        setNewTeacherName("");
+        setTeacherMode("select");
+      }
+      setStatus(`${isCourse ? "Course" : "Teacher"} saved and selected.`);
+    } catch (metadataError) {
+      setStatus(metadataError.message);
+    }
+  };
+
   const prepareAudioForReview = useCallback(async ({ blob, durationSec, mimeType, source }) => {
     setStatus("Preparing audio preview...");
     setPipelineStatus("");
@@ -101,6 +172,12 @@ export default function RecordPage({ onHistoryUpdate }) {
     setTranscriptDraft("");
     setSummaryDraft("");
     setPipelineSummary("");
+    setSelectedCourse("");
+    setSelectedTeacher("");
+    setCourseMode("select");
+    setTeacherMode("select");
+    setNewCourseName("");
+    setNewTeacherName("");
 
     const measuredDuration = await getBlobDurationSec(blob);
     const finalDuration = Math.max(durationSec, measuredDuration ?? 0) || 1;
@@ -364,11 +441,45 @@ export default function RecordPage({ onHistoryUpdate }) {
     }
   };
 
-  const finalizeFeedback = () => {
+  const finalizeFeedback = async () => {
     if (!pendingRecording) {
       setStatus("No recording is ready to finalize.");
       return;
     }
+
+    if (!selectedCourse || !selectedTeacher) {
+      setStatus("Select both a course and a teacher before finalizing.");
+      return;
+    }
+
+    const taskId = transcript?.task_id || pendingRecording?.task_id;
+    if (!taskId) {
+      setStatus("Missing task ID. Feedback could not be finalized.");
+      return;
+    }
+
+    setStatus("Saving finalized feedback...");
+    try {
+      const response = await fetch(`${API_BASE_URL}/tasks/finalize/${taskId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          course_id: Number(selectedCourse),
+          teacher_id: Number(selectedTeacher),
+          summary: summaryDraft,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.detail || "Backend could not finalize feedback.");
+      }
+    } catch (finalizeError) {
+      setStatus(finalizeError.message);
+      return;
+    }
+
+    const course = courses.find((item) => String(item.id) === selectedCourse);
+    const teacher = teachers.find((item) => String(item.id) === selectedTeacher);
 
     const entry = {
       id: crypto.randomUUID(),
@@ -380,6 +491,8 @@ export default function RecordPage({ onHistoryUpdate }) {
       speakerCount: Number(speakerCount),
       uploadStatus: "Reviewed and finalized",
       mimeType: pendingRecording.mimeType,
+      course: course?.name || "",
+      teacher: teacher?.name || "",
     };
 
     try {
@@ -589,6 +702,45 @@ export default function RecordPage({ onHistoryUpdate }) {
                   resize: "vertical",
                 }}
               />
+              <div className="feedback-metadata-grid">
+                <section className="feedback-metadata-field">
+                  <h3>1. Course</h3>
+                  <div className="feedback-choice-tabs">
+                    <button type="button" className={courseMode === "select" ? "is-active" : ""} onClick={() => setCourseMode("select")}>Select course</button>
+                    <button type="button" className={courseMode === "new" ? "is-active" : ""} onClick={() => setCourseMode("new")}>New course</button>
+                  </div>
+                  {courseMode === "select" ? (
+                    <select value={selectedCourse} disabled={metadataLoading || workflowStep === "complete"} onChange={(event) => setSelectedCourse(event.target.value)}>
+                      <option value="">{metadataLoading ? "Loading courses..." : "Choose a saved course"}</option>
+                      {courses.map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
+                    </select>
+                  ) : (
+                    <div className="feedback-new-item">
+                      <input value={newCourseName} onChange={(event) => setNewCourseName(event.target.value)} placeholder="Course name" />
+                      <button type="button" className="btn-ghost" onClick={() => createMetadataItem("course")}>Save course</button>
+                    </div>
+                  )}
+                </section>
+
+                <section className="feedback-metadata-field">
+                  <h3>2. Teacher</h3>
+                  <div className="feedback-choice-tabs">
+                    <button type="button" className={teacherMode === "select" ? "is-active" : ""} onClick={() => setTeacherMode("select")}>Select teacher</button>
+                    <button type="button" className={teacherMode === "new" ? "is-active" : ""} onClick={() => setTeacherMode("new")}>New teacher</button>
+                  </div>
+                  {teacherMode === "select" ? (
+                    <select value={selectedTeacher} disabled={metadataLoading || workflowStep === "complete"} onChange={(event) => setSelectedTeacher(event.target.value)}>
+                      <option value="">{metadataLoading ? "Loading teachers..." : "Choose a saved teacher"}</option>
+                      {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
+                    </select>
+                  ) : (
+                    <div className="feedback-new-item">
+                      <input value={newTeacherName} onChange={(event) => setNewTeacherName(event.target.value)} placeholder="Teacher name" />
+                      <button type="button" className="btn-ghost" onClick={() => createMetadataItem("teacher")}>Save teacher</button>
+                    </div>
+                  )}
+                </section>
+              </div>
               <button
                 type="button"
                 className="btn-ghost"
@@ -638,7 +790,7 @@ export default function RecordPage({ onHistoryUpdate }) {
               <button
                 type="button"
                 className="btn-ghost"
-                disabled={!canReviewSummary || workflowStep === "complete"}
+                disabled={!canReviewSummary || workflowStep === "complete" || !selectedCourse || !selectedTeacher}
                 onClick={finalizeFeedback}
                 style={{ marginTop: "1rem" }}
               >

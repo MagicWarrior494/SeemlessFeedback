@@ -15,7 +15,6 @@ from app.services.db import fetch_all_jobs, get_db_connection
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header
 from app.services.auth import create_user, authenticate_user
-from app.services.courses import create_course, get_all_courses
 
 app = FastAPI(title="SeemlessFeedback API", version="0.1.0")
 
@@ -216,6 +215,104 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class NamedItemRequest(BaseModel):
+    name: str
+
+
+class FinalizeFeedbackRequest(BaseModel):
+    course_id: int
+    teacher_id: int
+    summary: str
+
+
+def list_named_items(table: str, id_column: str) -> list:
+    conn = get_db_connection()
+    rows = conn.execute(
+        f"SELECT {id_column} AS id, name FROM {table} ORDER BY name COLLATE NOCASE"
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def create_named_item(table: str, id_column: str, name: str) -> dict:
+    cleaned_name = name.strip()
+    if not cleaned_name:
+        raise HTTPException(status_code=400, detail="Name cannot be empty.")
+
+    conn = get_db_connection()
+    try:
+        cursor = conn.execute(
+            f"INSERT OR IGNORE INTO {table} (name) VALUES (?)",
+            (cleaned_name,),
+        )
+        conn.commit()
+        row = conn.execute(
+            f"SELECT {id_column} AS id, name FROM {table} WHERE name = ? COLLATE NOCASE",
+            (cleaned_name,),
+        ).fetchone()
+        return dict(row)
+    finally:
+        conn.close()
+
+
+@app.get("/api/courses")
+def get_courses() -> list:
+    return list_named_items("courses", "course_id")
+
+
+@app.post("/api/courses", status_code=201)
+def add_course(payload: NamedItemRequest) -> dict:
+    return create_named_item("courses", "course_id", payload.name)
+
+
+@app.get("/api/teachers")
+def get_teachers() -> list:
+    return list_named_items("teachers", "teacher_id")
+
+
+@app.post("/api/teachers", status_code=201)
+def add_teacher(payload: NamedItemRequest) -> dict:
+    return create_named_item("teachers", "teacher_id", payload.name)
+
+
+@app.post("/tasks/finalize/{task_id}")
+def finalize_task_feedback(task_id: str, payload: FinalizeFeedbackRequest) -> dict:
+    summary = payload.summary.strip()
+    if not summary:
+        raise HTTPException(status_code=400, detail="Summary cannot be empty.")
+
+    conn = get_db_connection()
+    try:
+        job = conn.execute("SELECT task_id FROM jobs WHERE task_id = ?", (task_id,)).fetchone()
+        course = conn.execute(
+            "SELECT course_id FROM courses WHERE course_id = ?", (payload.course_id,)
+        ).fetchone()
+        teacher = conn.execute(
+            "SELECT teacher_id FROM teachers WHERE teacher_id = ?", (payload.teacher_id,)
+        ).fetchone()
+        if not job:
+            raise HTTPException(status_code=404, detail="Task ID not found.")
+        if not course or not teacher:
+            raise HTTPException(status_code=400, detail="Select a valid course and teacher.")
+
+        conn.execute(
+            '''
+            INSERT INTO finalized_feedback (task_id, course_id, teacher_id, summary)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(task_id) DO UPDATE SET
+                course_id = excluded.course_id,
+                teacher_id = excluded.teacher_id,
+                summary = excluded.summary,
+                finalized_at = CURRENT_TIMESTAMP
+            ''',
+            (task_id, payload.course_id, payload.teacher_id, summary),
+        )
+        conn.commit()
+        return {"status": "SUCCESS", "message": "Feedback finalized."}
+    finally:
+        conn.close()
+
+
 @app.post("/api/register")
 def register_account(payload: RegisterRequest):
     """Saves a new user account down to your SQLite architecture."""
@@ -256,31 +353,3 @@ def get_all_tasks_history(x_user_role: str = Header(None)) -> list:  # <-- Track
         
     from app.services.db import fetch_all_jobs
     return fetch_all_jobs()
-
-class CourseCreateRequest(BaseModel):
-    course_name: str
-    instructor_id: str
-
-@app.post("/api/courses")
-def add_new_course(payload: CourseCreateRequest, x_user_role: str = Header(None)):
-    """Allows instructors to add a new course to the database."""
-    if x_user_role != "instructor":
-        raise HTTPException(
-            status_code=403, 
-            detail="Access Denied: Only instructors can create new courses."
-        )
-        
-    if not payload.course_name.strip():
-        raise HTTPException(status_code=400, detail="Course name cannot be empty.")
-        
-    success = create_course(payload.course_name.strip(), payload.instructor_id)
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to save course to the database.")
-        
-    return {"status": "SUCCESS", "message": "Course created successfully!"}
-
-
-@app.get("/api/courses")
-def fetch_global_courses():
-    """Returns a global list of all courses for the student dropdown."""
-    return get_all_courses()
