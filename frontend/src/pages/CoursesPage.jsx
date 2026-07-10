@@ -14,9 +14,7 @@ export default function CoursesPage({ user }) {
       const response = await fetch(`${API_BASE_URL}/api/courses`);
       if (response.ok) {
         const data = await response.json();
-        // Filter the global list so this instructor only sees courses they own
-        const myCourses = data.filter(c => c.instructor_email === user.email);
-        setCourses(myCourses);
+        setCourses(data); // Show all global courses since they aren't filtered by instructor ID
       }
     } catch (err) {
       console.error("Failed to load courses:", err);
@@ -45,9 +43,8 @@ export default function CoursesPage({ user }) {
           "X-User-Role": user.role // Sends 'instructor' matching backend check rules
         },
         body: JSON.stringify({
-          course_name: newCourseName.trim(),
-          instructor_id: user.user_id // Drops the real user hex string identifier
-        }),
+          name: newCourseName.trim() // Changed from course_name
+        })
       });
 
       const data = await response.json();
@@ -103,7 +100,7 @@ export default function CoursesPage({ user }) {
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {courses.map((course) => (
                 <li key={course.course_id} style={{ padding: "0.75rem 1rem", borderRadius: "8px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.02)" }}>
-                  <span style={{ fontWeight: "500" }}>{course.course_name}</span>
+                  <span style={{ fontWeight: "500" }}>{course.name}</span> {/* Changed from course.course_name */}
                 </li>
               ))}
             </ul>

@@ -15,6 +15,7 @@ from app.services.db import fetch_all_jobs, get_db_connection
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header
 from app.services.auth import create_user, authenticate_user
+from app.services.courses import create_course, get_all_courses
 
 app = FastAPI(title="SeemlessFeedback API", version="0.1.0")
 
@@ -255,14 +256,35 @@ def create_named_item(table: str, id_column: str, name: str) -> dict:
         conn.close()
 
 
+class CourseCreateRequest(BaseModel):
+    name: str
+
+@app.post("/api/courses")
+def add_new_course(payload: CourseCreateRequest, x_user_role: str = Header(None)):
+    """Allows instructors to add a new course."""
+    if x_user_role != "instructor":
+        raise HTTPException(
+            status_code=403, 
+            detail="Access Denied: Only instructors can create new courses."
+        )
+        
+    if not payload.name.strip():
+        raise HTTPException(status_code=400, detail="Course name cannot be empty.")
+        
+    success = create_course(payload.name.strip())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save course to database.")
+        
+    return {"status": "SUCCESS", "message": "Course created successfully!"}
+
 @app.get("/api/courses")
-def get_courses() -> list:
-    return list_named_items("courses", "course_id")
-
-
-@app.post("/api/courses", status_code=201)
-def add_course(payload: NamedItemRequest) -> dict:
-    return create_named_item("courses", "course_id", payload.name)
+def fetch_courses(x_user_role: str = Header(None), x_user_email: str = Header(None)):
+    """Returns filtered courses for instructors, or all courses for students."""
+    if x_user_role == "instructor" and x_user_email:
+        from app.services.courses import get_courses_by_instructor
+        return get_courses_by_instructor(x_user_email)
+    
+    return get_all_courses()
 
 
 @app.get("/api/teachers")

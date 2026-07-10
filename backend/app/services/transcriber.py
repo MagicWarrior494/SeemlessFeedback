@@ -121,7 +121,7 @@ def generate_summary(transcript_data) -> str:
 
     print("[AI Service] Generating summary from transcript using Gemini...")
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-3.5-flash",
         contents=prompt,
     )
 

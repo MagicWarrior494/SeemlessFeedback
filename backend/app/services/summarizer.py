@@ -47,7 +47,7 @@ def summarize_transcript(task_id: str) -> str:
     try:
         # 3. Generate the summary using correct google-genai structural syntax parameters
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.5-flash',
             contents=f"""Your task is to analyze a transcript of a student discussion about a college course and extract useful, constructive feedback for the instructor.
 
 IMPORTANT RULES:
