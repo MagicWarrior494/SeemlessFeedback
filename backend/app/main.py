@@ -16,12 +16,13 @@ from app.services.db import fetch_all_jobs, get_db_connection
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header
 from app.services.auth import create_user, authenticate_user
 from app.services.courses import create_course, get_all_courses
+from app.services.courses import create_and_link_instructor_course
 
 app = FastAPI(title="SeemlessFeedback API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -164,22 +165,23 @@ def process_audio(file_path: str) -> dict:
     }
 
 @app.get("/tasks/status/{task_id}")
-def get_task_status(task_id: str) -> dict:
-    """
-    API Router endpoint: Validates the request and passes the database
-    result directly through to the frontend client.
-    """
-    from app.services.db import fetch_job_by_id
-    
-    # 1. Let the database service do the heavy logic lift
-    job_data = fetch_job_by_id(task_id)
-    
-    # 2. Handle missing tickets instantly at the routing gate
-    if not job_data:
-        raise HTTPException(status_code=404, detail="Task ID not found in database.")
+def get_task_status(task_id: str):
+    try:
+        from app.services.db import fetch_job_by_id
+        job = fetch_job_by_id(task_id)
         
-    # 3. Pass through the beautifully cleaned dictionary payload
-    return job_data
+        if not job:
+            raise HTTPException(status_code=404, detail="Job entry not found in database.")
+            
+        # Ensure transcript is never returned as None/Null to keep React from crashing
+        if job.get("transcript") is None:
+            job["transcript"] = []
+            
+        return job
+        
+    except Exception as e:
+        print(f"❌ CRASH inside status endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/tasks/summarize/{task_id}")
 def trigger_on_demand_summary(task_id: str) -> dict:
@@ -286,6 +288,50 @@ def fetch_courses(x_user_role: str = Header(None), x_user_email: str = Header(No
     
     return get_all_courses()
 
+@app.get("/api/teachers/{teacher_id}/courses")
+def fetch_courses_for_teacher(teacher_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Query junction table mapping
+    cursor.execute('''
+        SELECT c.course_id, c.name 
+        FROM courses c
+        JOIN teacher_courses tc ON c.course_id = tc.course_id
+        WHERE tc.teacher_id = ?
+        ORDER BY c.name ASC
+    ''', (teacher_id,))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+class CourseLinkRequest(BaseModel):
+    course_name: str
+    teacher_name: str
+    link_account: bool = False
+
+@app.post("/api/courses/manage")
+def setup_instructor_course(
+    payload: CourseLinkRequest, 
+    x_user_id: str = Header(None), 
+    x_user_role: str = Header(None)
+):
+    user_id = x_user_id or "default_instructor_id"
+    
+    if not payload.course_name.strip() or not payload.teacher_name.strip():
+        raise HTTPException(status_code=400, detail="Both Course Name and Instructor Name are required.")
+        
+    success = create_and_link_instructor_course(
+        user_id=user_id,
+        course_name=payload.course_name.strip(),
+        teacher_name=payload.teacher_name.strip(),
+        link_account=payload.link_account
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to create and link course assignment.")
+        
+    return {"status": "SUCCESS", "message": "Course and Teacher assignment successfully saved!"}
 
 @app.get("/api/teachers")
 def get_teachers() -> list:

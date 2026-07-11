@@ -10,7 +10,7 @@ print("💡 Memurai (Redis) is already running invisibly as a Windows Service.")
 
 # 1. Start FastAPI Backend
 print("👉 Spawning FastAPI Backend window...")
-os.system('start cmd /k "title Backend API && cd backend && .\\venv\\Scripts\\activate && uvicorn app.main:app --reload"')
+os.system('start cmd /k "title Backend API && cd backend && .\\venv\\Scripts\\activate && uvicorn app.main:app --reload --reload-dir app"')
 
 # 2. Start Celery Worker
 print("👉 Spawning Celery Worker window...")

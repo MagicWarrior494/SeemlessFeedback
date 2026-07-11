@@ -5,6 +5,9 @@ from google.genai import types
 # Fixed: Point to your actual database configuration module
 from app.services.db import get_db_connection
 
+# Configurable model (see transcriber.py). Defaults to the high-availability Flash-Lite tier.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+
 def summarize_transcript(task_id: str) -> str:
     """
     Fetches a transcript from the database by task_id, generates a structured academic 
@@ -47,7 +50,7 @@ def summarize_transcript(task_id: str) -> str:
     try:
         # 3. Generate the summary using correct google-genai structural syntax parameters
         response = client.models.generate_content(
-            model='gemini-3.5-flash',
+            model=GEMINI_MODEL,
             contents=f"""Your task is to analyze a transcript of a student discussion about a college course and extract useful, constructive feedback for the instructor.
 
 IMPORTANT RULES:

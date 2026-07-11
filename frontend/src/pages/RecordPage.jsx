@@ -7,7 +7,7 @@ import { useMicrophonePermission } from "../hooks/useMicrophonePermission";
 import { blobToDataUrl, getBlobDurationSec } from "../utils/audioData";
 import { addHistoryEntry } from "../utils/historyStorage";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "http://127.0.0.1:8000";
 
 function transcriptToText(transcriptValue) {
   if (!transcriptValue) {
@@ -105,15 +105,11 @@ export default function RecordPage({ onHistoryUpdate }) {
   const loadFeedbackMetadata = useCallback(async () => {
     setMetadataLoading(true);
     try {
-      const [courseResponse, teacherResponse] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/courses`),
-        fetch(`${API_BASE_URL}/api/teachers`),
-      ]);
-      if (!courseResponse.ok || !teacherResponse.ok) {
-        throw new Error("Could not load saved courses and teachers.");
+      const response = await fetch(`${API_BASE_URL}/api/teachers`);
+      if (!response.ok) {
+        throw new Error("Could not load saved teachers.");
       }
-      setCourses(await courseResponse.json());
-      setTeachers(await teacherResponse.json());
+      setTeachers(await response.json());
     } catch (metadataError) {
       setStatus(metadataError.message);
     } finally {
@@ -146,21 +142,41 @@ export default function RecordPage({ onHistoryUpdate }) {
         throw new Error(item.detail || `Could not save ${kind}.`);
       }
       if (isCourse) {
-        setCourses((current) => [...current.filter((course) => course.id !== item.id), item]
+        setCourses((current) => [...current.filter((course) => course.course_id !== item.course_id), item]
           .sort((a, b) => a.name.localeCompare(b.name)));
-        setSelectedCourse(String(item.id));
+        setSelectedCourse(String(item.course_id));
         setNewCourseName("");
         setCourseMode("select");
       } else {
-        setTeachers((current) => [...current.filter((teacher) => teacher.id !== item.id), item]
+        setTeachers((current) => [...current.filter((teacher) => teacher.teacher_id !== item.teacher_id), item]
           .sort((a, b) => a.name.localeCompare(b.name)));
-        setSelectedTeacher(String(item.id));
+        setSelectedTeacher(String(item.teacher_id));
         setNewTeacherName("");
         setTeacherMode("select");
       }
       setStatus(`${isCourse ? "Course" : "Teacher"} saved and selected.`);
     } catch (metadataError) {
       setStatus(metadataError.message);
+    }
+  };
+
+  const handleTeacherChange = async (teacherId) => {
+    setSelectedTeacher(teacherId);
+    setSelectedCourse(""); // Reset selected course when teacher changes
+    setCourses([]); // Clear current courses list while fetching
+
+    if (teacherId) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/teachers/${teacherId}/courses`);
+        if (response.ok) {
+          const teacherCourses = await response.json();
+          setCourses(teacherCourses);
+        } else {
+          console.error("Failed to fetch courses for selected teacher.");
+        }
+      } catch (err) {
+        console.error("Could not reach endpoint for teacher courses:", err);
+      }
     }
   };
 
@@ -414,11 +430,11 @@ export default function RecordPage({ onHistoryUpdate }) {
           const checkRes = await fetch(`${API_BASE_URL}/tasks/status/${taskId}`);
           const jobData = await checkRes.json();
           
-          if (jobData.status === "COMPLETED") {
+          if (jobData.status === "COMPLETED" || jobData.summary) {
             clearInterval(summaryPoll);
-            setSummaryDraft(jobData.summary);
+            setSummaryDraft(jobData.summary || "Summary generation complete.");
             setPipelineStatus("Summary ready");
-            setWorkflowStep("summary-review");
+            setWorkflowStep("summary-review"); // <--- This unveils the final review panel!
             setStatus("Review and edit the summary before finalizing.");
           } else if (jobData.status === "SUMMARY_FAILED") {
             clearInterval(summaryPoll);
@@ -682,6 +698,7 @@ export default function RecordPage({ onHistoryUpdate }) {
               <p className="settings-hint">
                 Make corrections before this text is sent to the summarizer.
               </p>
+              
               <textarea
                 value={transcriptDraft}
                 disabled={!canReviewTranscript}
@@ -702,45 +719,9 @@ export default function RecordPage({ onHistoryUpdate }) {
                   resize: "vertical",
                 }}
               />
-              <div className="feedback-metadata-grid">
-                <section className="feedback-metadata-field">
-                  <h3>1. Course</h3>
-                  <div className="feedback-choice-tabs">
-                    <button type="button" className={courseMode === "select" ? "is-active" : ""} onClick={() => setCourseMode("select")}>Select course</button>
-                    <button type="button" className={courseMode === "new" ? "is-active" : ""} onClick={() => setCourseMode("new")}>New course</button>
-                  </div>
-                  {courseMode === "select" ? (
-                    <select value={selectedCourse} disabled={metadataLoading || workflowStep === "complete"} onChange={(event) => setSelectedCourse(event.target.value)}>
-                      <option value="">{metadataLoading ? "Loading courses..." : "Choose a saved course"}</option>
-                      {courses.map((course) => <option key={course.id} value={course.id}>{course.name}</option>)}
-                    </select>
-                  ) : (
-                    <div className="feedback-new-item">
-                      <input value={newCourseName} onChange={(event) => setNewCourseName(event.target.value)} placeholder="Course name" />
-                      <button type="button" className="btn-ghost" onClick={() => createMetadataItem("course")}>Save course</button>
-                    </div>
-                  )}
-                </section>
 
-                <section className="feedback-metadata-field">
-                  <h3>2. Teacher</h3>
-                  <div className="feedback-choice-tabs">
-                    <button type="button" className={teacherMode === "select" ? "is-active" : ""} onClick={() => setTeacherMode("select")}>Select teacher</button>
-                    <button type="button" className={teacherMode === "new" ? "is-active" : ""} onClick={() => setTeacherMode("new")}>New teacher</button>
-                  </div>
-                  {teacherMode === "select" ? (
-                    <select value={selectedTeacher} disabled={metadataLoading || workflowStep === "complete"} onChange={(event) => setSelectedTeacher(event.target.value)}>
-                      <option value="">{metadataLoading ? "Loading teachers..." : "Choose a saved teacher"}</option>
-                      {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
-                    </select>
-                  ) : (
-                    <div className="feedback-new-item">
-                      <input value={newTeacherName} onChange={(event) => setNewTeacherName(event.target.value)} placeholder="Teacher name" />
-                      <button type="button" className="btn-ghost" onClick={() => createMetadataItem("teacher")}>Save teacher</button>
-                    </div>
-                  )}
-                </section>
-              </div>
+              {/* The old dropdown grid block was removed from here! */}
+
               <button
                 type="button"
                 className="btn-ghost"
@@ -762,12 +743,80 @@ export default function RecordPage({ onHistoryUpdate }) {
             </div>
           )}
 
+          
           {summaryDraft && canReviewSummary && (
             <div className="settings-panel">
               <h2>Review Summary</h2>
               <p className="settings-hint">
-                Edit the summary before saving the final instructor-facing feedback.
+                Select the teacher and course, then edit the summary before saving the final feedback.
               </p>
+
+              {}
+              <div className="feedback-metadata-grid" style={{ marginBottom: "1.5rem" }}>
+                {/* 1. TEACHER DROPDOWN */}
+                <section className="feedback-metadata-field">
+                  <h3>1. Teacher</h3>
+                  <select 
+                    value={selectedTeacher} 
+                    disabled={metadataLoading || workflowStep === "complete"} 
+                    onChange={(event) => handleTeacherChange(event.target.value)}
+                    style={{ 
+                      width: "100%", 
+                      padding: "0.75rem", 
+                      borderRadius: "8px", 
+                      border: "1px solid var(--border)", 
+                      background: "#1e1e24", 
+                      color: "#ffffff" 
+                    }}
+                  >
+                    <option value="" style={{ background: "#1e1e24", color: "#ffffff" }}>
+                      {metadataLoading ? "Loading teachers..." : "Choose a teacher"}
+                    </option>
+                    {teachers.map((teacher, idx) => (
+                      <option 
+                        key={teacher.teacher_id || teacher.id || idx} 
+                        value={teacher.teacher_id || teacher.id}
+                        style={{ background: "#1e1e24", color: "#ffffff" }}
+                      >
+                        {teacher.name}
+                      </option>
+                    ))}
+                  </select>
+                </section>
+
+                {/* 2. COURSE DROPDOWN */}
+                <section className="feedback-metadata-field">
+                  <h3>2. Course</h3>
+                  <select 
+                    value={selectedCourse} 
+                    disabled={!selectedTeacher || metadataLoading || workflowStep === "complete"} 
+                    onChange={(event) => setSelectedCourse(event.target.value)}
+                    style={{ 
+                      width: "100%", 
+                      padding: "0.75rem", 
+                      borderRadius: "8px", 
+                      border: "1px solid var(--border)", 
+                      background: "#1e1e24", 
+                      color: "#ffffff" 
+                    }}
+                  >
+                    <option value="" style={{ background: "#1e1e24", color: "#ffffff" }}>
+                      {!selectedTeacher ? "Select a teacher first" : "Choose a course"}
+                    </option>
+                    {courses.map((course, idx) => (
+                      <option 
+                        key={course.course_id || course.id || idx} 
+                        value={course.course_id || course.id}
+                        style={{ background: "#1e1e24", color: "#ffffff" }}
+                      >
+                        {course.name}
+                      </option>
+                    ))}
+                  </select>
+                </section>
+              </div>
+
+              {}
               <textarea
                 value={summaryDraft}
                 disabled={workflowStep === "complete"}
@@ -775,8 +824,7 @@ export default function RecordPage({ onHistoryUpdate }) {
                 rows={14}
                 style={{
                   width: "100%",
-                  minHeight: "320px",
-                  marginTop: "1rem",
+                  minHeight: "220px",
                   padding: "1.25rem",
                   borderRadius: "8px",
                   border: "1px solid var(--border)",
@@ -787,6 +835,8 @@ export default function RecordPage({ onHistoryUpdate }) {
                   resize: "vertical",
                 }}
               />
+
+              {}
               <button
                 type="button"
                 className="btn-ghost"
