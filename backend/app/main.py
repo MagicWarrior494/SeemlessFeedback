@@ -7,6 +7,8 @@ from app.services.db import fetch_job_by_id
 
 import os
 import shutil
+import json
+import uuid
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 
 from pydantic import BaseModel
@@ -225,6 +227,10 @@ class FinalizeFeedbackRequest(BaseModel):
     summary: str
 
 
+class TextFeedbackRequest(BaseModel):
+    transcript: str
+
+
 def list_named_items(table: str, id_column: str) -> list:
     conn = get_db_connection()
     rows = conn.execute(
@@ -273,6 +279,35 @@ def get_teachers() -> list:
 @app.post("/api/teachers", status_code=201)
 def add_teacher(payload: NamedItemRequest) -> dict:
     return create_named_item("teachers", "teacher_id", payload.name)
+
+
+@app.post("/tasks/text", status_code=201)
+def create_text_feedback_task(payload: TextFeedbackRequest) -> dict:
+    transcript = payload.transcript.strip()
+    if not transcript:
+        raise HTTPException(status_code=400, detail="Transcript cannot be empty.")
+
+    task_id = f"text-{uuid.uuid4()}"
+    transcript_rows = [
+        {"speaker": "Transcript", "text": line.strip()}
+        for line in transcript.splitlines()
+        if line.strip()
+    ]
+
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO jobs (task_id, status, file_path, speaker_count, transcript)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (task_id, "TRANSCRIPT_READY", "text-upload", 0, json.dumps(transcript_rows)),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"status": "SUCCESS", "task_id": task_id}
 
 
 @app.post("/tasks/finalize/{task_id}")
