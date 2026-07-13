@@ -12,6 +12,7 @@
   --accent-glow: rgba(239, 68, 68, 0.55);
   --border: rgba(255, 255, 255, 0.06);
   --radius: 12px;
+  --background-brightness: 1.35;
 }
 
 html,
@@ -35,9 +36,8 @@ body::before {
   position: fixed;
   inset: 0;
   z-index: -2;
-  background:
-    linear-gradient(135deg, rgba(9, 11, 16, 0.9), rgba(9, 11, 16, 0.72)),
-    url("./assets/farbsynthese-lightbulb.jpg") center / cover no-repeat;
+  background: url("./assets/farbsynthese-lightbulb.jpg") center / cover no-repeat;
+  filter: brightness(var(--background-brightness));
 }
 
 body::after {
@@ -46,9 +46,10 @@ body::after {
   inset: 0;
   z-index: -1;
   background:
+    linear-gradient(135deg, rgba(9, 11, 16, 0.72), rgba(9, 11, 16, 0.52)),
     radial-gradient(circle at 18% 20%, rgba(255, 255, 255, 0.1), transparent 24rem),
     radial-gradient(circle at 85% 10%, rgba(239, 68, 68, 0.18), transparent 24rem),
-    rgba(5, 7, 12, 0.35);
+    rgba(5, 7, 12, 0.22);
   pointer-events: none;
 }
 
