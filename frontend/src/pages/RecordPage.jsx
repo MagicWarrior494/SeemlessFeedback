@@ -494,8 +494,9 @@ export default function RecordPage({ onHistoryUpdate }) {
       return;
     }
 
-    const course = courses.find((item) => String(item.id) === selectedCourse);
-    const teacher = teachers.find((item) => String(item.id) === selectedTeacher);
+    // LOOKUP FIX: Support both course_id/teacher_id and standard id properties
+    const course = courses.find((item) => String(item.course_id || item.id) === String(selectedCourse));
+    const teacher = teachers.find((item) => String(item.teacher_id || item.id) === String(selectedTeacher));
 
     const entry = {
       id: crypto.randomUUID(),
@@ -507,8 +508,8 @@ export default function RecordPage({ onHistoryUpdate }) {
       speakerCount: Number(speakerCount),
       uploadStatus: "Reviewed and finalized",
       mimeType: pendingRecording.mimeType,
-      course: course?.name || "",
-      teacher: teacher?.name || "",
+      course: course?.name || "Unassigned Course",
+      teacher: teacher?.name || "Unassigned Teacher",
     };
 
     try {
