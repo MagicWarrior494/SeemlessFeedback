@@ -3,7 +3,9 @@ import React from "react";
 import logoImg from "../assets/logo.png"; 
 
 const NAV_ITEMS = [
-  { id: "record", label: "Record" },
+  { id: "feedback-choice", label: "Give Feedback", studentOnly: true },
+  { id: "record", label: "Audio" },
+  { id: "text", label: "Text" },
   { id: "courses", label: "Courses" },
   { id: "history", label: "History" },
   { id: "about", label: "About" },
@@ -24,11 +26,18 @@ export default function Sidebar({ active, onNavigate, userRole }) {
             objectFit: "contain" 
           }} 
         />
-        <span className="sidebar-title">Seemless</span>
       </div>
       <nav className="sidebar-nav" aria-label="Main">
         {NAV_ITEMS.map((item) => {
+          if (userRole !== "student" && item.studentOnly) {
+            return null;
+          }
+
           if (userRole === "student" && (item.id === "history" || item.id === "courses")) {
+            return null;
+          }
+
+          if (userRole === "instructor" && (item.id === "record" || item.id === "text")) {
             return null;
           }
 

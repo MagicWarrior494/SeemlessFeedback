@@ -1,15 +1,20 @@
 import React, { useCallback, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import AboutPage from "./pages/AboutPage";
+import CoursesPage from "./pages/CoursesPage";
+import FeedbackChoicePage from "./pages/FeedbackChoicePage";
 import HistoryPage from "./pages/HistoryPage";
+import LoginPage from "./pages/LoginPage";
 import RecordPage from "./pages/RecordPage";
 import SettingsPage from "./pages/SettingsPage";
-import LoginPage from "./pages/LoginPage";
-import CoursesPage from "./pages/CoursesPage";
-import { clearHistory, loadHistory } from "./utils/historyStorage";
+import TextFeedbackPage from "./pages/TextFeedbackPage";
+import logoImg from "./assets/logo.png";
+import { clearHistory } from "./utils/historyStorage";
 
 const PAGES = {
+  "feedback-choice": FeedbackChoicePage,
   record: RecordPage,
+  text: TextFeedbackPage,
   history: HistoryPage,
   settings: SettingsPage,
   about: AboutPage,
@@ -18,26 +23,24 @@ const PAGES = {
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [page, setPage] = useState("record");
-  const [history, setHistory] = useState([]); // Double semicolon typo cleaned up here
+  const [page, setPage] = useState("feedback-choice");
+  const [history, setHistory] = useState([]);
 
   const refreshHistory = useCallback(async () => {
     if (!user) return;
 
     try {
-      // FIXED: Point directly to the exact IPv4 address your Uvicorn engine uses
       const response = await fetch("http://127.0.0.1:8000/tasks/history", {
         method: "GET",
         headers: {
-          "X-User-Role": user.role
-        }
+          "X-User-Role": user.role,
+        },
       });
 
       if (response.ok) {
         const backendJobsArray = await response.json();
         setHistory(backendJobsArray);
       } else if (response.status === 403) {
-        console.log("🛡️ Student account detected: Skipping backend history pulling index sync.");
         setHistory([]);
       }
     } catch (err) {
@@ -52,66 +55,81 @@ export default function App() {
     }
   }, []);
 
+  const handleLogout = useCallback(() => {
+    setUser(null);
+    setPage("feedback-choice");
+    setHistory([]);
+  }, []);
+
   if (!user) {
-    return <LoginPage onLoginSuccess={(loggedInUser) => {
-      setUser(loggedInUser);
-      
-      if (loggedInUser.role === "instructor") {
-        setPage("history");
-        setTimeout(() => {
-          refreshHistory();
-        }, 50);
-      } else {
-        setPage("record");
-      }
-    }} />;
+    return (
+      <LoginPage
+        onLoginSuccess={(loggedInUser) => {
+          setUser(loggedInUser);
+
+          if (loggedInUser.role === "instructor") {
+            setPage("history");
+            setTimeout(() => {
+              refreshHistory();
+            }, 50);
+          } else {
+            setPage("feedback-choice");
+          }
+        }}
+      />
+    );
   }
 
-  const activePageKey = (user.role === "student" && page === "history") ? "record" : page;
+  const activePageKey =
+    user.role === "student" && (page === "history" || page === "courses")
+      ? "feedback-choice"
+      : page;
 
-  const Page = PAGES[activePageKey];
+  const Page = PAGES[activePageKey] || FeedbackChoicePage;
 
   return (
     <div className="app">
-      {}
-      <Sidebar 
-        active={activePageKey} 
+      <Sidebar
+        active={activePageKey}
         onNavigate={(targetPage) => {
-          if (user.role === "student" && targetPage === "history") return;
+          if (user.role === "student" && (targetPage === "history" || targetPage === "courses")) return;
           setPage(targetPage);
-        }} 
+        }}
         userRole={user.role}
       />
-      
-      <main className="main" style={{ position: "relative" }}>
-        {/* Sleek Minimal Role ID Badge Accent */}
-        <div style={{
-          position: "absolute",
-          top: "1.5rem",
-          right: "2.5rem",
-          fontSize: "0.8rem",
-          color: "var(--text-muted)",
-          background: "rgba(255, 255, 255, 0.05)",
-          padding: "4px 10px",
-          borderRadius: "20px",
-          border: "1px solid var(--border)",
-          textTransform: "capitalize",
-          zIndex: 10
-        }}>
-          ● {user.role} workspace
-        </div>
 
-        {/* FIXED: Uses activePageKey and checks roles directly before revealing layout elements */}
-        {activePageKey === "record" ? (
-          <RecordPage onHistoryUpdate={refreshHistory} />
-        ) : (activePageKey === "history" && user.role === "instructor") ? (
+      <main className="main">
+        <header className="topbar">
+          <button
+            type="button"
+            className="topbar-brand"
+            onClick={() => setPage(user.role === "student" ? "feedback-choice" : "history")}
+          >
+            <img src={logoImg} alt="Seemless logo" />
+            <span>Seemless Feedback</span>
+          </button>
+          <div className="topbar-actions">
+            <span className="workspace-badge">● {user.role} workspace</span>
+            <button type="button" className="btn-ghost" onClick={handleLogout}>
+              Log out
+            </button>
+          </div>
+        </header>
+
+        {activePageKey === "feedback-choice" ? (
+          <FeedbackChoicePage onChoose={setPage} />
+        ) : activePageKey === "record" ? (
+          <RecordPage onHistoryUpdate={refreshHistory} onBackToChoice={() => setPage("feedback-choice")} />
+        ) : activePageKey === "text" ? (
+          <TextFeedbackPage onHistoryUpdate={refreshHistory} onBackToChoice={() => setPage("feedback-choice")} />
+        ) : activePageKey === "history" && user.role === "instructor" ? (
           <HistoryPage entries={history} onClear={handleClearHistory} />
-        ) : (activePageKey === "courses" && user.role === "instructor") ? (
-          <CoursesPage user={user} /> // Safe mount verification parameters
+        ) : activePageKey === "courses" && user.role === "instructor" ? (
+          <CoursesPage user={user} />
         ) : (
           <Page />
         )}
-      </main>``
+      </main>
     </div>
   );
 }

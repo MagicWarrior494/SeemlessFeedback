@@ -53,12 +53,49 @@ export default function LoginPage({ onLoginSuccess }) {
   };
 
   return (
-    <div style={{ 
-      display: "flex", justifyContent: "center", alignItems: "center", 
-      minHeight: "100vh", width: "100vw", position: "fixed", 
-      top: 0, left: 0, background: "#121214", zIndex: 9999 
-    }}>
-      <div className="settings-panel" style={{ width: "100%", maxWidth: "420px", padding: "2.5rem", borderRadius: "12px" }}>
+    <div className="auth-page">
+      <header className="topbar auth-topbar">
+        <div className="topbar-brand">
+          <img src={logoImg} alt="Seemless logo" />
+          <span>Seemless Feedback</span>
+        </div>
+        <div className="topbar-actions">
+          <button
+            type="button"
+            className={!isRegistering ? "btn-primary" : "btn-ghost"}
+            onClick={() => {
+              setIsRegistering(false);
+              setError("");
+              setMessage("");
+            }}
+          >
+            Log in
+          </button>
+          <button
+            type="button"
+            className={isRegistering ? "btn-primary" : "btn-ghost"}
+            onClick={() => {
+              setIsRegistering(true);
+              setError("");
+              setMessage("");
+            }}
+          >
+            Sign up
+          </button>
+        </div>
+      </header>
+
+      <section className="auth-hero">
+        <div className="hero-card auth-welcome-card">
+          <p className="eyebrow">Welcome to</p>
+          <h1>Seemless Feedback</h1>
+          <p>
+            A calmer way for students to submit thoughtful feedback and for instructors
+            to review polished summaries.
+          </p>
+        </div>
+
+        <div className="settings-panel auth-card">
         
         {/* Branding & Header Header */}
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
@@ -159,7 +196,8 @@ export default function LoginPage({ onLoginSuccess }) {
           </button>
         </div>
 
-      </div>
+        </div>
+      </section>
     </div>
   );
 }
