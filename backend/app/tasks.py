@@ -5,11 +5,15 @@ from app.services.transcriber import transcribe_and_diarize_audio
 from app.services.summarizer import summarize_transcript as run_summarizer_engine
 from app.services.db import get_db_connection
 
+def _overload_backoff(retries: int) -> int:
+    """Exponential backoff for transient Gemini 503/429 spikes: 5s, 10s, 20s... capped at 60s."""
+    return min(5 * (2 ** retries), 60)
+
+
 @celery_app.task(
-    name="app.tasks.process_audio_pipeline", 
+    name="app.tasks.process_audio_pipeline",
     bind=True,                  # Required to access self.retry
-    max_retries=3,              # Retry up to 3 times
-    default_retry_delay=5       # Wait 5 seconds between attempts
+    max_retries=6              # Retry up to 6 times with exponential backoff
 )
 def process_audio_pipeline(self, file_path: str, speaker_count: int = None):
     """
@@ -54,9 +58,10 @@ def process_audio_pipeline(self, file_path: str, speaker_count: int = None):
         print(f"⚠️ Transcription attempt failed for {task_id}: {str(e)}")
         
         # Check if Google is slammed with a 503 or 429 error code
-        if "503" in str(e) or "UNAVAILABLE" in str(e):
-            print(f"🔄 Gemini is experiencing high demand. Retrying transcription {task_id} in 5 seconds...")
-            raise self.retry(exc=e)
+        if "503" in str(e) or "UNAVAILABLE" in str(e) or "429" in str(e):
+            countdown = _overload_backoff(self.request.retries)
+            print(f"🔄 Gemini is experiencing high demand. Retrying transcription {task_id} in {countdown}s...")
+            raise self.retry(exc=e, countdown=countdown)
 
         cursor.execute(
             "UPDATE jobs SET status = ? WHERE task_id = ?",
@@ -70,10 +75,9 @@ def process_audio_pipeline(self, file_path: str, speaker_count: int = None):
 
 
 @celery_app.task(
-    name="app.tasks.summarize_transcript_task", 
+    name="app.tasks.summarize_transcript_task",
     bind=True,
-    max_retries=3,
-    default_retry_delay=5
+    max_retries=6
 )
 def summarize_transcript_task(self, task_id: str):
     """
@@ -87,6 +91,8 @@ def summarize_transcript_task(self, task_id: str):
         return {"status": "SUCCESS", "task_id": task_id}
     except Exception as e:
         print(f"⚠️ Summarization attempt failed for {task_id}: {str(e)}")
-        if "503" in str(e) or "UNAVAILABLE" in str(e):
-            raise self.retry(exc=e)
+        if "503" in str(e) or "UNAVAILABLE" in str(e) or "429" in str(e):
+            countdown = _overload_backoff(self.request.retries)
+            print(f"🔄 Gemini overloaded. Retrying summary {task_id} in {countdown}s...")
+            raise self.retry(exc=e, countdown=countdown)
         raise e

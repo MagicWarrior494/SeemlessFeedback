@@ -2,12 +2,21 @@ import sqlite3
 import os
 import json
 
-DB_PATH = "seemlessfeedback.db"
+# Anchor the DB to a fixed absolute location (backend/seemlessfeedback.db) so the
+# FastAPI server and the Celery worker always open the SAME file, no matter which
+# directory each process is launched from. A relative path resolves against the
+# process CWD, which silently split the app across two different database files.
+DB_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "seemlessfeedback.db")
+)
 
 def get_db_connection():
-    """Opens a connection to the SQLite database file."""
-    conn = sqlite3.connect(DB_PATH)
-    # Allows us to access columns by name like row['status'] instead of just row[0]
+    """Opens a connection to the SQLite database file with thread-safe multi-threading enabled."""
+    conn = sqlite3.connect(
+        DB_PATH, 
+        timeout=30.0,                  
+        check_same_thread=False   
+    )
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -52,7 +61,19 @@ def init_db():
         CREATE TABLE IF NOT EXISTS teachers (
             teacher_id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL COLLATE NOCASE UNIQUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            user_id TEXT, -- Links directly to users(user_id)
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(user_id)
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS teacher_courses (
+            teacher_id INTEGER NOT NULL,
+            course_id INTEGER NOT NULL,
+            PRIMARY KEY (teacher_id, course_id),
+            FOREIGN KEY(teacher_id) REFERENCES teachers(teacher_id),
+            FOREIGN KEY(course_id) REFERENCES courses(course_id)
         )
     ''')
 

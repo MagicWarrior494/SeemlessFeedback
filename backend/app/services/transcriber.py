@@ -4,6 +4,10 @@ import time
 from google import genai
 from google.genai import types
 
+# Model is configurable so you can swap it without editing code. Flash-Lite is the
+# most available tier (highest RPM, least likely to 503). Override with GEMINI_MODEL.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+
 # Load GEMINI_API_KEY from .env if not already present in environment variables
 if "GEMINI_API_KEY" not in os.environ:
     for path in [".env", "../.env", "../../.env"]:
@@ -57,7 +61,7 @@ def transcribe_and_diarize_audio(file_path: str, speaker_count: int = None) -> l
 
     print("🤖 [AI Service] Querying Gemini model with strict diarization rules...")
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model=GEMINI_MODEL,
         contents=[audio_file, prompt],
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
@@ -121,7 +125,7 @@ def generate_summary(transcript_data) -> str:
 
     print("[AI Service] Generating summary from transcript using Gemini...")
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model=GEMINI_MODEL,
         contents=prompt,
     )
 
