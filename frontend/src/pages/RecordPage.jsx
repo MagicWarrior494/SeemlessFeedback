@@ -74,7 +74,7 @@ async function requestSummary(transcriptText, speakerCount) {
   return summary;
 }
 
-export default function RecordPage({ onHistoryUpdate }) {
+export default function RecordPage({ onHistoryUpdate, onBackToChoice }) {
   const [status, setStatus] = useState(null);
   const [pipelineStatus, setPipelineStatus] = useState("");
   const [workflowStep, setWorkflowStep] = useState("record");
@@ -560,6 +560,11 @@ export default function RecordPage({ onHistoryUpdate }) {
 
   return (
     <div className="page page--record">
+      {!isEditingWorkflow && onBackToChoice && (
+        <button type="button" className="btn-ghost back-button record-back-button" onClick={onBackToChoice}>
+          Back
+        </button>
+      )}
       <RecordingTimer elapsedSec={elapsedSec} visible={isRecording} />
       <div className="record-stage">
         {isEditingWorkflow && !isRecording ? (
