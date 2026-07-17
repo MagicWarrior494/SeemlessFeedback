@@ -93,10 +93,10 @@ Our team communicated mainly through a Discord server for quick day-to-day quest
 
 ## Team Responsibilities
 
-* **Backend (FastAPI, Celery, AI services):** Alex Turner
-* **Frontend (React pages and components):** Firstname Lastname
-* **AI integration (transcription & summarization):** Firstname Lastname
-* **Integration, testing, and dev tooling (`run_dev.py`):** Alex Turner
+* **Backend (FastAPI, Celery, AI services):** Alex Turner, Nicholas Elliott
+* **Frontend (React pages and components):** Kevin Rogers, Alex Turner
+* **AI integration (transcription & summarization):** Alex Turner, Kevin Rogers
+* **Integration, testing, and dev tooling (`run_dev.py`):** Alex Turner, Kevin Rogers, Nicholas Elliott
 
 ## Reflections
 
