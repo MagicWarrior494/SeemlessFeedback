@@ -58,16 +58,6 @@ def trigger_job(name: str):
     return {"message": "Job successfully sent to the Celery queue!"}
 
 
-from app.services.db import fetch_all_jobs  # Add this to your imports at the top!
-
-@app.get("/tasks/history")
-def get_all_tasks_history() -> list:
-    """
-    Returns every transcription job saved in the SQLite database, 
-    allowing you to review past transcripts without knowing their IDs.
-    """
-    return fetch_all_jobs()
-
 # Ensure a physical directory exists locally on your machine to hold user clips
 UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "recordings"))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -89,7 +79,7 @@ async def save_recorded_audio(
         with open(server_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        print(f"💾 Fresh clip successfully saved to disk at: {server_file_path}")
+        print(f"Fresh clip successfully saved to disk at: {server_file_path}")
 
         relative_worker_path = os.path.join("recordings", clean_filename).replace("\\", "/")
 
@@ -104,7 +94,7 @@ async def save_recorded_audio(
         }
 
     except Exception as e:
-        print(f"❌ Failed to save incoming audio data stream: {str(e)}")
+        print(f"Failed to save incoming audio data stream: {str(e)}")
         raise HTTPException(status_code=500, detail="Server failed to write audio payload to storage.")
 
 
@@ -443,16 +433,26 @@ def login_account(payload: LoginRequest):
 
 
 @app.get("/tasks/history")
-def get_all_tasks_history(x_user_role: str = Header(None)) -> list:  # <-- Tracks incoming header role
+def get_all_tasks_history(
+    x_user_role: str = Header(None),
+    x_user_id: str = Header(None),
+) -> list:
     """
-    Returns history entries ONLY if the requesting account holds Instructor clearance.
+    Returns history entries ONLY if the requesting account holds Instructor clearance,
+    scoped to the courses that instructor is actually the teacher of.
     """
     # Force multi-tenant security verification right at the router threshold gate
     if x_user_role != "instructor":
         raise HTTPException(
-            status_code=403, 
+            status_code=403,
             detail="Access Denied: Students do not have clearance to evaluate master history logs."
         )
-        
-    from app.services.db import fetch_all_jobs
-    return fetch_all_jobs()
+
+    if not x_user_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing X-User-Id header: cannot determine which instructor is asking."
+        )
+
+    from app.services.db import fetch_jobs_for_instructor
+    return fetch_jobs_for_instructor(x_user_id)

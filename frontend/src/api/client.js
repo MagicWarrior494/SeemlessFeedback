@@ -1,10 +1,6 @@
 const API_BASE = "http://127.0.0.1:8000";
 
-/**
- * Stub upload — POST to /recordings when the backend endpoint exists.
- * Returns { ok, message } without throwing on network/404 failures.
- */
-export async function uploadRecording(blob, metadata = {}) {
+export async function uploadRecording(blob, metadata = {}) { //heres
   const formData = new FormData();
   const ext = blob.type.includes("webm") ? "webm" : "audio";
   formData.append("file", blob, `recording.${ext}`);

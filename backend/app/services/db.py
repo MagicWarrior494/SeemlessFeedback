@@ -128,20 +128,70 @@ def fetch_job_by_id(task_id: str) -> dict | None:
         
     return result
 
+def _row_to_history_entry(row) -> dict:
+    """Shapes a jobs row into the field names the History UI reads."""
+    transcript = row["transcript"]
+    if transcript:
+        try:
+            segments = json.loads(transcript)
+            transcript = "\n".join(
+                f"{seg['speaker']}: {seg['text']}" for seg in segments
+            )
+        except Exception:
+            pass  # Older rows stored the transcript as plain text already.
+
+    return {
+        "id": row["task_id"],
+        "createdAt": row["created_at"],
+        "status": row["status"],
+        "transcript": transcript,
+        "summary": row["summary"],
+        "courseName": row["course_name"],
+    }
+
+def fetch_jobs_for_instructor(user_id: str) -> list:
+    """
+    Queries history entries belonging to ONE instructor, newest first.
+
+    A job is "theirs" once a student finalizes it against a teacher profile whose
+    user_id matches this login. Jobs that are not finalized yet have no teacher
+    association at all, so they belong to nobody and are correctly excluded.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        '''
+        SELECT j.task_id, j.status, j.transcript, j.created_at,
+               f.summary AS summary, c.name AS course_name
+        FROM jobs j
+        JOIN finalized_feedback f ON f.task_id = j.task_id
+        JOIN teachers t ON t.teacher_id = f.teacher_id
+        JOIN courses c ON c.course_id = f.course_id
+        WHERE t.user_id = ?
+        ORDER BY j.created_at DESC
+        ''',
+        (user_id,),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [_row_to_history_entry(row) for row in rows]
+
 def fetch_all_jobs() -> list:
     """
-    Queries the database for all history entries, 
+    Queries the database for all history entries,
     sorted by newest first, so you can check recent transcripts.
     """
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute(
         "SELECT task_id, status, transcript, summary, created_at FROM jobs ORDER BY created_at DESC"
     )
     rows = cursor.fetchall()
     conn.close()
-    
+
     jobs_list = []
     for row in rows:
         job = {

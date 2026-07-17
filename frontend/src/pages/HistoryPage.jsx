@@ -42,6 +42,9 @@ export default function HistoryPage({ entries, onClear }) {
           <li key={item.id} className="history-card">
             <div className="history-card-meta">
               <time dateTime={item.createdAt}>{formatDate(item.createdAt)}</time>
+              {item.courseName && (
+                <span className="history-course">{item.courseName}</span>
+              )}
               <HistoryDuration
                 audioDataUrl={item.audioDataUrl}
                 durationSec={item.durationSec}

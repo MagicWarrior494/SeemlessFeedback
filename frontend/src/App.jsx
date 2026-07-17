@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Sidebar from "./components/Sidebar";
 import AboutPage from "./pages/AboutPage";
 import CoursesPage from "./pages/CoursesPage";
@@ -34,6 +34,7 @@ export default function App() {
         method: "GET",
         headers: {
           "X-User-Role": user.role,
+          "X-User-Id": user.user_id,
         },
       });
 
@@ -47,6 +48,15 @@ export default function App() {
       console.error("Could not sync master database history records:", err);
     }
   }, [user]);
+
+  // Fetch once `user` is actually committed to state. Calling refreshHistory()
+  // straight from the login handler runs a closure captured when user was still
+  // null, so it bails at the !user guard and never fetches.
+  useEffect(() => {
+    if (user?.role === "instructor") {
+      refreshHistory();
+    }
+  }, [user, refreshHistory]);
 
   const handleClearHistory = useCallback(() => {
     if (window.confirm("Clear all recording history from this browser?")) {
@@ -69,9 +79,6 @@ export default function App() {
 
           if (loggedInUser.role === "instructor") {
             setPage("history");
-            setTimeout(() => {
-              refreshHistory();
-            }, 50);
           } else {
             setPage("feedback-choice");
           }
