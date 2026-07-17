@@ -1,6 +1,6 @@
 const API_BASE = "http://127.0.0.1:8000";
 
-export async function uploadRecording(blob, metadata = {}) { //heres
+export async function uploadRecording(blob, metadata = {}) {
   const formData = new FormData();
   const ext = blob.type.includes("webm") ? "webm" : "audio";
   formData.append("file", blob, `recording.${ext}`);
@@ -9,7 +9,7 @@ export async function uploadRecording(blob, metadata = {}) { //heres
   }
 
   try {
-    const res = await fetch(`${API_BASE}/recordings`, {
+    const res = await fetch(`${API_BASE}/recordings`, { //treasure
       method: "POST",
       body: formData,
     });

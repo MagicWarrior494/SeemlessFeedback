@@ -180,7 +180,7 @@ export default function RecordPage({ onHistoryUpdate, onBackToChoice }) {
     }
   };
 
-  const prepareAudioForReview = useCallback(async ({ blob, durationSec, mimeType, source }) => {
+  const prepareAudioForReview = useCallback(async ({ blob, durationSec, mimeType, source }) => { //heres
     setStatus("Preparing audio preview...");
     setPipelineStatus("");
     setWorkflowStep("audio-review");
@@ -301,7 +301,7 @@ export default function RecordPage({ onHistoryUpdate, onBackToChoice }) {
       taskPollRef.current = null;
     }
 
-    const upload = await uploadRecording(pendingRecording.blob, {
+    const upload = await uploadRecording(pendingRecording.blob, { //treasure
       durationSec: pendingRecording.durationSec,
       speakerCount: numericSpeakerCount,
       speaker_count: numericSpeakerCount,

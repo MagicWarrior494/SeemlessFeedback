@@ -89,7 +89,7 @@ export function useAudioRecorder({ onRecordingComplete, onPermissionGranted } = 
     stopDurationSecRef.current = null;
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); //here
       onPermissionGranted?.();
       streamRef.current = stream;
 
